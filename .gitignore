@@ -1,0 +1,18 @@
+# IDE
+.idea/
+.vscode/
+
+# CMake and Conan
+build/
+cmake-build-*/
+CMakeUserPresets.json
+compile_commands.json
+
+# Generated artifacts
+Testing/
+*.dSYM/
+*.profraw
+*.profdata
+
+# OS
+.DS_Store

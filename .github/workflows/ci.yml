@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            cc: gcc-13
+            cxx: g++-13
+            build_type: Debug
+            preset: debug
+          - os: ubuntu-24.04
+            cc: gcc-13
+            cxx: g++-13
+            build_type: Release
+            preset: release
+          - os: ubuntu-24.04
+            cc: clang-18
+            cxx: clang++-18
+            build_type: Debug
+            preset: debug
+          - os: macos-15
+            cc: clang
+            cxx: clang++
+            build_type: Release
+            preset: release
+    runs-on: ${{ matrix.os }}
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ~/.conan2/p
+          key: conan-${{ runner.os }}-${{ matrix.cxx }}-${{ hashFiles('conan.lock') }}
+      - name: Install Conan
+        run: python -m pip install conan==2.26.2
+      - name: Configure dependencies
+        run: |
+          conan profile detect --force
+          conan install . --lockfile=conan.lock --build=missing \
+            -s build_type=${{ matrix.build_type }} -s compiler.cppstd=20
+      - name: Configure
+        run: cmake --preset conan-${{ matrix.preset }} -DRDAP_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build --preset conan-${{ matrix.preset }} --parallel 2
+      - name: Test
+        run: ctest --preset conan-${{ matrix.preset }} --output-on-failure
+
+  quality:
+    runs-on: ubuntu-24.04
+    env:
+      CC: clang-18
+      CXX: clang++-18
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Check formatting
+        run: clang-format-18 --dry-run --Werror $(git ls-files '*.cpp' '*.hpp')
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - name: Install Conan
+        run: python -m pip install conan==2.26.2
+      - name: Generate compilation database
+        run: |
+          conan profile detect
+          conan install . --lockfile=conan.lock --build=missing \
+            -s build_type=Debug -s compiler.cppstd=20
+          cmake --preset conan-debug
+      - name: Run clang-tidy
+        run: clang-tidy-18 -p build/Debug $(git ls-files 'src/*.cpp')
+
+  sanitizers:
+    runs-on: ubuntu-24.04
+    env:
+      CC: clang-18
+      CXX: clang++-18
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - name: Install Conan
+        run: python -m pip install conan==2.26.2
+      - name: Configure
+        run: |
+          conan profile detect --force
+          conan install . --lockfile=conan.lock --build=missing \
+            -s build_type=Debug -s compiler.cppstd=20
+          cmake --preset conan-debug -DRDAP_ENABLE_SANITIZERS=ON
+      - name: Build and test
+        run: |
+          cmake --build --preset conan-debug --parallel 2
+          ctest --preset conan-debug --output-on-failure
