@@ -4,6 +4,8 @@
 The current milestone supports interactive domain lookups, IANA bootstrap discovery, HTTPS
 requests, and both pretty-printed and byte-preserving JSON views.
 
+![rdap-tui domain lookup](docs/rdap-tui.svg)
+
 ## Requirements
 
 - C++20 compiler: GCC 13+, Clang 18+, or AppleClang 16+
