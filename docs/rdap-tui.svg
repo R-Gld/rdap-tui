@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" rx="16" fill="#0d1117"/>
+  <rect x="24" y="24" width="1152" height="632" rx="8" fill="#161b22"
+        stroke="#8b949e" stroke-width="2"/>
+
+  <g fill="#e6edf3" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+     font-size="18">
+    <text x="600" y="61" text-anchor="middle" font-weight="bold">rdap-tui</text>
+    <path d="M24 78H1176" stroke="#8b949e"/>
+
+    <text x="48" y="112">Domain</text>
+    <rect x="132" y="88" width="790" height="36" rx="4" fill="#0d1117" stroke="#58a6ff"/>
+    <text x="148" y="112">example.com</text>
+    <rect x="944" y="88" width="118" height="36" rx="4" fill="#238636"/>
+    <text x="1003" y="112" text-anchor="middle" font-weight="bold">Search</text>
+
+    <text x="48" y="155">Status</text>
+    <circle cx="143" cy="149" r="6" fill="#3fb950"/>
+    <text x="160" y="155" fill="#3fb950">Request completed</text>
+    <text x="48" y="188" fill="#8b949e" font-size="15">
+      example.com · HTTP 200 · https://rdap.verisign.com/com/v1/domain/example.com
+    </text>
+
+    <path d="M24 207H1176" stroke="#8b949e"/>
+    <text x="48" y="240">Response</text>
+    <rect x="154" y="216" width="92" height="34" rx="4" fill="#1f6feb"/>
+    <text x="200" y="239" text-anchor="middle" font-weight="bold">Pretty</text>
+    <text x="275" y="239" fill="#8b949e">Raw</text>
+
+    <g font-size="16">
+      <text x="52" y="279">{</text>
+      <text x="76" y="307">"objectClassName": "domain",</text>
+      <text x="76" y="335">"handle": "2336799_DOMAIN_COM-VRSN",</text>
+      <text x="76" y="363">"ldhName": "EXAMPLE.COM",</text>
+      <text x="76" y="391">"status": [</text>
+      <text x="100" y="419">"client delete prohibited",</text>
+      <text x="100" y="447">"client transfer prohibited",</text>
+      <text x="100" y="475">"client update prohibited"</text>
+      <text x="76" y="503">],</text>
+      <text x="76" y="531">"nameservers": [ ... ],</text>
+      <text x="76" y="559">"events": [ ... ]</text>
+      <text x="52" y="587">}</text>
+    </g>
+
+    <path d="M24 611H1176" stroke="#8b949e"/>
+    <text x="48" y="638" fill="#8b949e" font-size="14">
+      Enter: search · Tab: focus · ↑/↓/PgUp/PgDn: scroll · Ctrl+C/Esc: quit
+    </text>
+  </g>
+</svg>
