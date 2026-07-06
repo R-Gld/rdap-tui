@@ -1,0 +1,84 @@
+name: Release binaries
+
+on:
+  pull_request:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - name: Install Conan
+        run: python -m pip install conan==2.26.2
+      - name: Configure dependencies
+        run: |
+          conan profile detect --force
+          conan install . --lockfile=conan.lock --build=missing -s build_type=Release -s compiler.cppstd=20
+      - name: Configure
+        run: cmake --preset conan-release -DRDAP_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build --preset conan-release --config Release --parallel 2
+      - name: Test
+        run: ctest --preset conan-release -C Release --output-on-failure
+      - name: Package executable
+        run: >-
+          python scripts/package_release.py
+          --build-dir build
+          --output-dir dist
+          --runner-os "${{ runner.os }}"
+          --runner-arch "${{ runner.arch }}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: rdap-tui-${{ runner.os }}-${{ runner.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          fetch-depth: 0
+      - name: Verify tag belongs to main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: rdap-tui-*
+          path: dist
+          merge-multiple: true
+      - name: Verify asset versions and generate checksums
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          test "$(find dist -type f -name "rdap-tui-v${version}-*" | wc -l)" -eq 2
+          chmod +x dist/rdap-tui-v*-linux-* dist/rdap-tui-v*-macos-*
+          cd dist
+          sha256sum rdap-tui-v* > SHA256SUMS
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* \
+              --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          fi

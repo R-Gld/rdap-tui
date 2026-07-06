@@ -34,6 +34,15 @@ Run the executable generated under `build/Release/`:
 Conan also generates a `conan-debug` preset when installed with
 `-s build_type=Debug`.
 
+## Downloads
+
+Tagged releases provide directly downloadable executables for Linux and macOS, plus a
+`SHA256SUMS` file. Users may need to restore the executable bit after downloading:
+
+```sh
+chmod +x rdap-tui-v*-linux-* # or rdap-tui-v*-macos-*
+```
+
 ## Usage
 
 Enter an ASCII domain, Punycode A-label, IPv4 or IPv6 address, CIDR prefix, or ASN and press Enter.
