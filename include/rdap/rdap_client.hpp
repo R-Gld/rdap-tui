@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "rdap/bootstrap_cache.hpp"
 #include "rdap/bootstrap_registry.hpp"
 #include "rdap/http.hpp"
 
@@ -24,7 +25,11 @@ struct RdapResponse {
 
 class RdapClient {
 public:
-  explicit RdapClient(HttpClient &http_client) : http_client_(http_client) {}
+  // disk_cache is non-owning and may be nullptr to disable disk-backed
+  // bootstrap caching entirely (behavior then matches the in-memory-only
+  // caching this class always had).
+  explicit RdapClient(HttpClient &http_client, BootstrapCache *disk_cache = nullptr)
+      : http_client_(http_client), disk_cache_(disk_cache) {}
 
   Result<RdapResponse> lookup(const ResourceQuery &query, const CancellationToken &cancellation,
                               const ProgressCallback &progress = {});
@@ -38,6 +43,7 @@ private:
   Result<AsnBootstrapRegistry> asn_bootstrap(const CancellationToken &cancellation);
 
   HttpClient &http_client_;
+  BootstrapCache *disk_cache_{nullptr};
   std::mutex bootstrap_mutex_;
   std::optional<BootstrapRegistry> domain_bootstrap_;
   std::optional<IpBootstrapRegistry> ipv4_bootstrap_;
