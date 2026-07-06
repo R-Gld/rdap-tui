@@ -29,5 +29,16 @@ matching uses inclusive ranges. Only HTTPS services are returned. A lookup tries
 equivalent service after a transport error or HTTP 5xx, but does not retry 4xx responses or repeat
 the same endpoint.
 
+Each bootstrap registry is additionally persisted to an on-disk `BootstrapCache`, so a fresh
+process reuses the previous fetch instead of always querying IANA, per RFC 9224's guidance to
+honor HTTP cache signaling rather than a fixed re-fetch interval. A fresh entry (within the
+`Cache-Control: max-age` IANA returned) is served with zero network I/O; a stale entry is
+revalidated with a conditional GET (`If-None-Match`/`If-Modified-Since`), and a `304` response
+simply extends the freshness window. A transport error or HTTP 5xx while revalidating falls back
+to the stale cached body rather than failing the lookup, since bootstrap data changes rarely and
+availability matters more than perfect freshness; a 4xx is still a hard error, as it more likely
+signals a permanent problem with the URL itself. Disk I/O failures (an unwritable cache directory,
+a corrupt cache file) are absorbed internally and never the reason a lookup fails.
+
 `rdap_core` is an internal seam rather than a stable public library. Its API and ABI may change
 until version 1.0.
