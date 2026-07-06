@@ -19,18 +19,27 @@ conan profile detect --force
 
 # Conan Center caches these as prebuilt glibc binaries, which cannot run
 # under musl. Point Conan at the apk-installed versions instead so it
-# never tries to download or execute its own copies. Only works for
-# recipes that request a version range (cmake, pkgconf) -- recipes
-# pinning an exact tool version (m4, autoconf, automake) never match
-# the platform declaration, so those are force-built from source below.
+# never tries to download or execute its own copies.
+#
+# conan.lock already pins m4/autoconf/automake to exact versions, and
+# lockfile resolution takes priority over --build policy even with
+# --lockfile-partial, so forcing a source rebuild of those references
+# has no effect. platform_tool_requires works instead because it
+# substitutes the requirement itself rather than its build policy, but
+# the substitution only matches a *version range* request (cmake,
+# pkgconf) -- an exact-pinned request only matches a platform
+# declaration for that same exact version, regardless of what apk
+# actually installed, so mirror conan.lock's pinned versions below.
 profile="$(conan profile path default)"
-printf '\n[platform_tool_requires]\n' >> "$profile"
-for tool in cmake pkgconf; do
-  version=$("$tool" --version | head -n1 | awk '{print $NF}')
-  printf '%s/%s\n' "$tool" "$version" >> "$profile"
-done
+{
+  printf '\n[platform_tool_requires]\n'
+  printf 'cmake/%s\n' "$(cmake --version | head -n1 | awk '{print $NF}')"
+  printf 'pkgconf/%s\n' "$(pkgconf --version | head -n1 | awk '{print $NF}')"
+  printf 'm4/1.4.19\n'
+  printf 'autoconf/2.71\n'
+  printf 'automake/1.16.5\n'
+} >> "$profile"
 conan install . --lockfile=conan.lock --lockfile-partial --build=missing \
-  --build=m4 --build=autoconf --build=automake \
   -s build_type=Release -s compiler.cppstd=20
 cmake --preset conan-release -DRDAP_WARNINGS_AS_ERRORS=ON -DRDAP_STATIC_LINK=ON
 cmake --build --preset conan-release --config Release --parallel 2
