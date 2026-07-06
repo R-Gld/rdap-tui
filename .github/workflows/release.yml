@@ -10,12 +10,35 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-15]
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - name: Build static musl binary in Alpine container
+        run: >-
+          docker run --rm
+          -v "${{ github.workspace }}:/workspace" -w /workspace
+          alpine:3.24 sh scripts/build_static_linux.sh
+      - name: Verify static linking
+        run: file build/Release/rdap-tui | tee /dev/stderr | grep -q "statically linked"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - name: Package executable
+        run: >-
+          python scripts/package_release.py
+          --build-dir build
+          --output-dir dist
+          --runner-os "${{ runner.os }}"
+          --runner-arch "${{ runner.arch }}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: rdap-tui-${{ runner.os }}-${{ runner.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -48,7 +71,7 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build-linux, build-macos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
