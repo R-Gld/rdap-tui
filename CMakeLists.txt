@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
   rdap-tui
-  VERSION 0.2.0
+  VERSION 0.2.1
   DESCRIPTION "A terminal client for the Registration Data Access Protocol"
   LANGUAGES CXX
 )
@@ -11,6 +11,7 @@ option(RDAP_BUILD_TESTS "Build unit tests" ON)
 option(RDAP_ENABLE_NETWORK_TESTS "Build opt-in tests that access the Internet" OFF)
 option(RDAP_WARNINGS_AS_ERRORS "Treat project warnings as errors" OFF)
 option(RDAP_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(RDAP_STATIC_LINK "Statically link the rdap-tui executable" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -74,6 +75,9 @@ target_link_libraries(
 )
 target_compile_definitions(rdap-tui PRIVATE RDAP_TUI_VERSION="${PROJECT_VERSION}")
 rdap_set_project_options(rdap-tui)
+if(RDAP_STATIC_LINK)
+  target_link_options(rdap-tui PRIVATE -static)
+endif()
 
 include(CTest)
 if(BUILD_TESTING AND RDAP_BUILD_TESTS)
