@@ -1,0 +1,55 @@
+{
+  "rdapConformance": ["rdap_level_0"],
+  "objectClassName": "domain",
+  "handle": "EXAMPLE-COM",
+  "ldhName": "EXAMPLE.COM",
+  "unicodeName": "example.com",
+  "status": ["active"],
+  "port43": "whois.example",
+  "events": [
+    {"eventAction": "registration", "eventDate": "1995-08-14T04:00:00Z"},
+    {"eventAction": "expiration", "eventDate": "2030-08-13T04:00:00Z"}
+  ],
+  "entities": [
+    {
+      "objectClassName": "entity",
+      "handle": "REG-1",
+      "roles": ["registrar"],
+      "publicIds": [{"type": "IANA Registrar ID", "identifier": "999"}],
+      "vcardArray": [
+        "vcard",
+        [
+          ["version", {}, "text", "4.0"],
+          ["fn", {}, "text", "Example Registrar"],
+          ["org", {}, "text", ["Example Registrar Ltd"]],
+          ["email", {"type": ["work"], "pref": "1"}, "text", "mailto:help@example.test"],
+          ["tel", {"type": "voice"}, "uri", "tel:+1-555-0100"],
+          ["adr", {"type": "work", "label": "1 Registry Way, Paris"}, "text",
+           ["", "", "1 Registry Way", "Paris", "", "75001", "FR"]]
+        ]
+      ]
+    }
+  ],
+  "nameservers": [
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "NS1.EXAMPLE.COM",
+      "ipAddresses": {"v4": ["192.0.2.1"], "v6": ["2001:db8::1"]}
+    }
+  ],
+  "secureDNS": {
+    "zoneSigned": true,
+    "delegationSigned": true,
+    "maxSigLife": 604800,
+    "dsData": [
+      {"keyTag": 12345, "algorithm": 13, "digestType": 2, "digest": "ABCDEF"}
+    ]
+  },
+  "notices": [
+    {"title": "Terms", "description": ["Use subject to policy."]}
+  ],
+  "links": [
+    {"value": "https://rdap.example/domain/EXAMPLE.COM", "rel": "self",
+     "href": "https://rdap.example/domain/EXAMPLE.COM", "type": "application/rdap+json"}
+  ]
+}

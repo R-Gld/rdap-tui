@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
   rdap-tui
-  VERSION 0.0.1
+  VERSION 0.1.0
   DESCRIPTION "A terminal client for the Registration Data Access Protocol"
   LANGUAGES CXX
 )
@@ -48,6 +48,8 @@ add_library(
   src/bootstrap_registry.cpp
   src/curl_http_client.cpp
   src/domain_name.cpp
+  src/domain_record_parser.cpp
+  src/domain_view_formatter.cpp
   src/rdap_client.cpp
 )
 target_include_directories(rdap_core PUBLIC include)
@@ -75,9 +77,15 @@ if(BUILD_TESTING AND RDAP_BUILD_TESTS)
     rdap_tests
     tests/bootstrap_registry_test.cpp
     tests/domain_name_test.cpp
+    tests/domain_record_parser_test.cpp
+    tests/domain_view_formatter_test.cpp
     tests/rdap_client_test.cpp
   )
   target_link_libraries(rdap_tests PRIVATE rdap_core Catch2::Catch2WithMain)
+  target_compile_definitions(
+    rdap_tests
+    PRIVATE RDAP_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+  )
   rdap_set_project_options(rdap_tests)
 
   include(Catch)

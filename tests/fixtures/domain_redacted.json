@@ -1,0 +1,19 @@
+{
+  "rdapConformance": ["rdap_level_0"],
+  "objectClassName": "domain",
+  "ldhName": "PRIVATE.EXAMPLE",
+  "entities": [
+    {"objectClassName": "entity", "roles": ["registrant"]}
+  ],
+  "remarks": [
+    {
+      "title": "Registration data",
+      "type": "object redacted due to authorization",
+      "description": ["Some values are not disclosed."]
+    },
+    {
+      "type": "result set truncated due to authorization",
+      "description": ["Additional values were omitted."]
+    }
+  ]
+}

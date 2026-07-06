@@ -1,0 +1,16 @@
+{
+  "objectClassName": "domain",
+  "ldhName": 42,
+  "status": "active",
+  "events": [
+    {"eventAction": "registration", "eventDate": false},
+    null
+  ],
+  "nameservers": {},
+  "secureDNS": {
+    "zoneSigned": "yes",
+    "maxSigLife": -1,
+    "dsData": [{"keyTag": "123", "digest": 9}]
+  },
+  "unknownExtension": {"retainedOnlyInJson": true}
+}

@@ -22,29 +22,31 @@
     </text>
 
     <path d="M24 207H1176" stroke="#8b949e"/>
-    <text x="48" y="240">Response</text>
-    <rect x="154" y="216" width="92" height="34" rx="4" fill="#1f6feb"/>
-    <text x="200" y="239" text-anchor="middle" font-weight="bold">Pretty</text>
-    <text x="275" y="239" fill="#8b949e">Raw</text>
+    <text x="48" y="240">View</text>
+    <rect x="112" y="216" width="118" height="34" rx="4" fill="#1f6feb"/>
+    <text x="171" y="239" text-anchor="middle" font-weight="bold">Overview</text>
+    <text x="265" y="239" fill="#8b949e">Contacts</text>
+    <text x="370" y="239" fill="#8b949e">DNS</text>
+    <text x="438" y="239" fill="#8b949e">Notices</text>
+    <text x="530" y="239" fill="#8b949e">JSON</text>
 
     <g font-size="16">
-      <text x="52" y="279">{</text>
-      <text x="76" y="307">"objectClassName": "domain",</text>
-      <text x="76" y="335">"handle": "2336799_DOMAIN_COM-VRSN",</text>
-      <text x="76" y="363">"ldhName": "EXAMPLE.COM",</text>
-      <text x="76" y="391">"status": [</text>
-      <text x="100" y="419">"client delete prohibited",</text>
-      <text x="100" y="447">"client transfer prohibited",</text>
-      <text x="100" y="475">"client update prohibited"</text>
-      <text x="76" y="503">],</text>
-      <text x="76" y="531">"nameservers": [ ... ],</text>
-      <text x="76" y="559">"events": [ ... ]</text>
-      <text x="52" y="587">}</text>
+      <text x="52" y="279" font-weight="bold">Domain</text>
+      <text x="76" y="307">LDH name: EXAMPLE.COM</text>
+      <text x="76" y="335">Handle: 2336799_DOMAIN_COM-VRSN</text>
+      <text x="52" y="375" font-weight="bold">Status</text>
+      <text x="76" y="403">- client delete prohibited</text>
+      <text x="76" y="431">- client transfer prohibited</text>
+      <text x="76" y="459">- client update prohibited</text>
+      <text x="52" y="499" font-weight="bold">Events</text>
+      <text x="76" y="527">registration: 1995-08-14T04:00:00Z</text>
+      <text x="76" y="555">expiration: 2026-08-13T04:00:00Z</text>
+      <text x="52" y="595" font-weight="bold">Registration</text>
     </g>
 
     <path d="M24 611H1176" stroke="#8b949e"/>
     <text x="48" y="638" fill="#8b949e" font-size="14">
-      Enter: search · Tab: focus · ↑/↓/PgUp/PgDn: scroll · Ctrl+C/Esc: quit
+      Enter: search · 1-5: views · Tab: focus · ↑/↓/PgUp/PgDn: scroll · Ctrl+C/Esc: quit
     </text>
   </g>
 </svg>
