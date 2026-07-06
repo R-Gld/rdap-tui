@@ -19,14 +19,19 @@ conan profile detect --force
 
 # Conan Center caches these as prebuilt glibc binaries, which cannot run
 # under musl. Point Conan at the apk-installed versions instead so it
-# never tries to download or execute its own copies.
+# never tries to download or execute its own copies. Only works for
+# recipes that request a version range (cmake, pkgconf) -- recipes
+# pinning an exact tool version (m4, autoconf, automake) never match
+# the platform declaration, so those are force-built from source below.
 profile="$(conan profile path default)"
 printf '\n[platform_tool_requires]\n' >> "$profile"
-for tool in cmake m4 autoconf automake pkgconf; do
+for tool in cmake pkgconf; do
   version=$("$tool" --version | head -n1 | awk '{print $NF}')
   printf '%s/%s\n' "$tool" "$version" >> "$profile"
 done
-conan install . --lockfile=conan.lock --lockfile-partial --build=missing -s build_type=Release -s compiler.cppstd=20
+conan install . --lockfile=conan.lock --lockfile-partial --build=missing \
+  --build=m4 --build=autoconf --build=automake \
+  -s build_type=Release -s compiler.cppstd=20
 cmake --preset conan-release -DRDAP_WARNINGS_AS_ERRORS=ON -DRDAP_STATIC_LINK=ON
 cmake --build --preset conan-release --config Release --parallel 2
 ctest --preset conan-release -C Release --output-on-failure
