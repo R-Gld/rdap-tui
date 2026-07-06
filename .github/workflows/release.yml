@@ -20,7 +20,7 @@ jobs:
           -v "${{ github.workspace }}:/workspace" -w /workspace
           alpine:3.24 sh scripts/build_static_linux.sh
       - name: Verify static linking
-        run: file build/Release/rdap-tui | tee /dev/stderr | grep -q "statically linked"
+        run: file build/Release/rdap-tui | tee /dev/stderr | grep -qE "static(-pie)? linked"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12"
