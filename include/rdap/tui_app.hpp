@@ -3,6 +3,8 @@
 
 namespace rdap {
 
-int run_tui();
+class BootstrapCache;
+
+int run_tui(BootstrapCache *disk_cache);
 
 } // namespace rdap

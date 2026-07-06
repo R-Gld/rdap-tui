@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "rdap/bootstrap_cache.hpp"
 #include "rdap/tui_app.hpp"
 
+#include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string_view>
+#include <system_error>
 
 namespace {
 
@@ -17,7 +21,16 @@ void print_help(std::string_view executable) {
 
 int main(int argc, char **argv) {
   if (argc == 1) {
-    return rdap::run_tui();
+    std::optional<rdap::BootstrapCache> disk_cache;
+    const auto directory = rdap::default_bootstrap_cache_directory();
+    if (!directory.empty()) {
+      std::error_code error;
+      std::filesystem::create_directories(directory, error);
+      if (!error) {
+        disk_cache.emplace(directory);
+      }
+    }
+    return rdap::run_tui(disk_cache.has_value() ? &*disk_cache : nullptr);
   }
   if (argc == 2) {
     const std::string_view argument(argv[1]);
