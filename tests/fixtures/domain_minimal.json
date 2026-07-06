@@ -1,0 +1,5 @@
+{
+  "rdapConformance": ["rdap_level_0"],
+  "objectClassName": "domain",
+  "ldhName": "EXAMPLE.COM"
+}

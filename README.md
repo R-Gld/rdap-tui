@@ -1,8 +1,8 @@
 # rdap-tui
 
 `rdap-tui` is an open-source terminal client for the Registration Data Access Protocol (RDAP).
-The current milestone supports interactive domain lookups, IANA bootstrap discovery, HTTPS
-requests, and both pretty-printed and byte-preserving JSON views.
+The Domain MVP supports interactive lookups with structured registration, contact, DNS, notice,
+and JSON views. Discovery uses the IANA bootstrap registry and requests use verified HTTPS.
 
 ![rdap-tui domain lookup](docs/rdap-tui.svg)
 
@@ -35,15 +35,22 @@ Conan also generates a `conan-debug` preset when installed with
 
 ## Usage
 
-Enter an ASCII domain or Punycode A-label and press Enter. Use Tab to move between controls,
-arrow keys or Page Up/Page Down to scroll, and Ctrl+C or Escape to quit.
+Enter an ASCII domain or Punycode A-label and press Enter. The result is split into five views:
+Overview, Contacts, DNS, Notices, and JSON. Press 1–5 to switch views while the domain field is not
+focused. The JSON view retains both a pretty-printed document and the byte-preserving response.
+
+Use Tab to move between controls, arrow keys or Page Up/Page Down to scroll, and Ctrl+C or Escape
+to quit.
 
 ```text
 rdap-tui [--help] [--version]
 ```
 
-Unicode-to-IDNA conversion, structured object views, IP/ASN lookups, persistent caching, and
-binary packages are intentionally outside Milestone 0.
+Malformed optional fields do not hide valid registration data: the structured projection reports
+warnings in the Notices view, while the complete response remains available under JSON.
+
+Unicode-to-IDNA conversion, IP/ASN lookups, persistent caching, and binary packages remain outside
+the Domain MVP.
 
 ## Optional network smoke test
 
