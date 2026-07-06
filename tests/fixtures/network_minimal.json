@@ -1,0 +1,7 @@
+{
+  "rdapConformance": ["rdap_level_0"],
+  "objectClassName": "ip network",
+  "startAddress": "2001:0db8:0000:0000:0000:0000:0000:0000",
+  "endAddress": "2001:db8::ffff",
+  "ipVersion": "v6"
+}

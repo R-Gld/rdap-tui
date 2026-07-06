@@ -1,0 +1,24 @@
+{
+  "rdapConformance": ["rdap_level_0"],
+  "objectClassName": "autnum",
+  "handle": "AS13335",
+  "startAutnum": 13335,
+  "endAutnum": 13335,
+  "name": "CLOUDFLARENET",
+  "type": "DIRECT ALLOCATION",
+  "country": "US",
+  "status": ["active"],
+  "events": [
+    {"eventAction": "registration", "eventDate": "2010-07-14T00:00:00Z"}
+  ],
+  "entities": [
+    {
+      "objectClassName": "entity",
+      "roles": ["registrant"],
+      "vcardArray": ["vcard", [["fn", {}, "text", "Example ASN Operator"]]]
+    }
+  ],
+  "notices": [
+    {"description": ["Autnum lookup terms."]}
+  ]
+}

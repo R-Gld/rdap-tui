@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
   rdap-tui
-  VERSION 0.1.0
+  VERSION 0.2.0
   DESCRIPTION "A terminal client for the Registration Data Access Protocol"
   LANGUAGES CXX
 )
@@ -50,10 +50,16 @@ add_library(
   src/domain_name.cpp
   src/domain_record_parser.cpp
   src/domain_view_formatter.cpp
+  src/network_record_parser.cpp
+  src/network_view_formatter.cpp
   src/rdap_client.cpp
+  src/resource_query.cpp
 )
 target_include_directories(rdap_core PUBLIC include)
 target_link_libraries(rdap_core PUBLIC CURL::libcurl nlohmann_json::nlohmann_json)
+if(WIN32)
+  target_link_libraries(rdap_core PUBLIC ws2_32)
+endif()
 rdap_set_project_options(rdap_core)
 
 add_executable(rdap-tui src/main.cpp src/tui_app.cpp)
@@ -79,7 +85,10 @@ if(BUILD_TESTING AND RDAP_BUILD_TESTS)
     tests/domain_name_test.cpp
     tests/domain_record_parser_test.cpp
     tests/domain_view_formatter_test.cpp
+    tests/network_record_parser_test.cpp
+    tests/network_view_formatter_test.cpp
     tests/rdap_client_test.cpp
+    tests/resource_query_test.cpp
   )
   target_link_libraries(rdap_tests PRIVATE rdap_core Catch2::Catch2WithMain)
   target_compile_definitions(
@@ -96,6 +105,6 @@ if(BUILD_TESTING AND RDAP_BUILD_TESTS)
     target_link_libraries(rdap_network_smoke PRIVATE rdap_core)
     rdap_set_project_options(rdap_network_smoke)
     add_test(NAME rdap.network.smoke COMMAND rdap_network_smoke)
-    set_tests_properties(rdap.network.smoke PROPERTIES LABELS network TIMEOUT 30)
+    set_tests_properties(rdap.network.smoke PROPERTIES LABELS network TIMEOUT 60)
   endif()
 endif()

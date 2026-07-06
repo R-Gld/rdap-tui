@@ -1,0 +1,15 @@
+{
+  "objectClassName": "autnum",
+  "startAutnum": 4294967296,
+  "endAutnum": -1,
+  "name": 12,
+  "type": null,
+  "country": "ZZ",
+  "status": null,
+  "remarks": [
+    {
+      "type": "result set truncated due to authorization",
+      "description": ["Some records are unavailable."]
+    }
+  ]
+}

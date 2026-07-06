@@ -1,8 +1,9 @@
 # rdap-tui
 
 `rdap-tui` is an open-source terminal client for the Registration Data Access Protocol (RDAP).
-The Domain MVP supports interactive lookups with structured registration, contact, DNS, notice,
-and JSON views. Discovery uses the IANA bootstrap registry and requests use verified HTTPS.
+The Network Resources MVP supports interactive domain, IPv4, IPv6, CIDR, and ASN lookups with
+structured registration, contact, resource, notice, and JSON views. Discovery uses the IANA
+bootstrap registries and requests use verified HTTPS.
 
 ![rdap-tui domain lookup](docs/rdap-tui.svg)
 
@@ -35,9 +36,13 @@ Conan also generates a `conan-debug` preset when installed with
 
 ## Usage
 
-Enter an ASCII domain or Punycode A-label and press Enter. The result is split into five views:
-Overview, Contacts, DNS, Notices, and JSON. Press 1–5 to switch views while the domain field is not
-focused. The JSON view retains both a pretty-printed document and the byte-preserving response.
+Enter an ASCII domain, Punycode A-label, IPv4 or IPv6 address, CIDR prefix, or ASN and press Enter.
+ASN input accepts both `AS13335` and `13335`; numeric-only input is therefore treated as an ASN.
+CIDR input is normalized to its network prefix before lookup.
+
+The result is split into five views: Overview, Contacts, a resource-specific DNS/Network/Autnum
+view, Notices, and JSON. Press 1–5 to switch views while the query field is not focused. The JSON
+view retains both a pretty-printed document and the byte-preserving response.
 
 Use Tab to move between controls, arrow keys or Page Up/Page Down to scroll, and Ctrl+C or Escape
 to quit.
@@ -49,8 +54,11 @@ rdap-tui [--help] [--version]
 Malformed optional fields do not hide valid registration data: the structured projection reports
 warnings in the Notices view, while the complete response remains available under JSON.
 
-Unicode-to-IDNA conversion, IP/ASN lookups, persistent caching, and binary packages remain outside
-the Domain MVP.
+The country shown for IP and ASN results is the registration country reported by the registry; it
+is not IP geolocation.
+
+Unicode-to-IDNA conversion, BGP/RPKI data, geolocation, persistent disk caching, and binary
+packages remain outside this milestone.
 
 ## Optional network smoke test
 
@@ -64,8 +72,8 @@ cmake --build --preset conan-debug
 ctest --preset conan-debug -L network --output-on-failure
 ```
 
-The smoke test contacts IANA and the authoritative service for `example.com`; external outages
-or rate limiting can therefore make it fail.
+The smoke test contacts IANA and authoritative services for `example.com`, `1.1.1.1`, and
+`AS13335`; external outages or rate limiting can therefore make it fail.
 
 ## Standards and security
 

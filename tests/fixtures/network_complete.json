@@ -1,0 +1,46 @@
+{
+  "rdapConformance": ["rdap_level_0"],
+  "objectClassName": "ip network",
+  "handle": "NET-192-0-2-0-1",
+  "startAddress": "192.0.2.0",
+  "endAddress": "192.0.2.255",
+  "ipVersion": "v4",
+  "name": "TEST-NET-1",
+  "type": "DIRECT ALLOCATION",
+  "country": "US",
+  "parentHandle": "NET-192-0-0-0-0",
+  "status": ["active"],
+  "port43": "whois.example",
+  "events": [
+    {"eventAction": "registration", "eventDate": "1990-12-31T23:59:59Z"}
+  ],
+  "entities": [
+    {
+      "objectClassName": "entity",
+      "handle": "ORG-TEST",
+      "roles": ["registrant"],
+      "vcardArray": [
+        "vcard",
+        [
+          ["fn", {}, "text", "Example Network Operator"],
+          ["email", {"type": "work"}, "text", "noc@example.test"]
+        ]
+      ],
+      "entities": [
+        {
+          "objectClassName": "entity",
+          "handle": "TECH-TEST",
+          "roles": ["technical"],
+          "vcardArray": ["vcard", [["fn", {}, "text", "Technical Contact"]]]
+        }
+      ]
+    }
+  ],
+  "notices": [
+    {"title": "Terms", "description": ["Network lookup terms."]}
+  ],
+  "links": [
+    {"value": "https://rdap.example/ip/192.0.2.1", "rel": "self",
+     "href": "https://rdap.example/ip/192.0.2.1", "type": "application/rdap+json"}
+  ]
+}

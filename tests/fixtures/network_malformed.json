@@ -1,0 +1,12 @@
+{
+  "objectClassName": "ip network",
+  "handle": 42,
+  "startAddress": "999.1.1.1",
+  "endAddress": "192.0.2.0/24",
+  "ipVersion": "v7",
+  "name": false,
+  "country": ["US"],
+  "status": "active",
+  "entities": {},
+  "unknownExtension": true
+}

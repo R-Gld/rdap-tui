@@ -8,9 +8,9 @@
     <text x="600" y="61" text-anchor="middle" font-weight="bold">rdap-tui</text>
     <path d="M24 78H1176" stroke="#8b949e"/>
 
-    <text x="48" y="112">Domain</text>
+    <text x="48" y="112">Query</text>
     <rect x="132" y="88" width="790" height="36" rx="4" fill="#0d1117" stroke="#58a6ff"/>
-    <text x="148" y="112">example.com</text>
+    <text x="148" y="112">192.0.2.1</text>
     <rect x="944" y="88" width="118" height="36" rx="4" fill="#238636"/>
     <text x="1003" y="112" text-anchor="middle" font-weight="bold">Search</text>
 
@@ -18,7 +18,7 @@
     <circle cx="143" cy="149" r="6" fill="#3fb950"/>
     <text x="160" y="155" fill="#3fb950">Request completed</text>
     <text x="48" y="188" fill="#8b949e" font-size="15">
-      example.com · HTTP 200 · https://rdap.verisign.com/com/v1/domain/example.com
+      192.0.2.1 · HTTP 200 · https://rdap.example/ip/192.0.2.1
     </text>
 
     <path d="M24 207H1176" stroke="#8b949e"/>
@@ -26,21 +26,18 @@
     <rect x="112" y="216" width="118" height="34" rx="4" fill="#1f6feb"/>
     <text x="171" y="239" text-anchor="middle" font-weight="bold">Overview</text>
     <text x="265" y="239" fill="#8b949e">Contacts</text>
-    <text x="370" y="239" fill="#8b949e">DNS</text>
+    <text x="370" y="239" fill="#8b949e">Network</text>
     <text x="438" y="239" fill="#8b949e">Notices</text>
     <text x="530" y="239" fill="#8b949e">JSON</text>
 
     <g font-size="16">
-      <text x="52" y="279" font-weight="bold">Domain</text>
-      <text x="76" y="307">LDH name: EXAMPLE.COM</text>
-      <text x="76" y="335">Handle: 2336799_DOMAIN_COM-VRSN</text>
+      <text x="52" y="279" font-weight="bold">IP network</text>
+      <text x="76" y="307">Name: TEST-NET-1</text>
+      <text x="76" y="335">Handle: NET-192-0-2-0-1</text>
       <text x="52" y="375" font-weight="bold">Status</text>
-      <text x="76" y="403">- client delete prohibited</text>
-      <text x="76" y="431">- client transfer prohibited</text>
-      <text x="76" y="459">- client update prohibited</text>
+      <text x="76" y="403">- active</text>
       <text x="52" y="499" font-weight="bold">Events</text>
-      <text x="76" y="527">registration: 1995-08-14T04:00:00Z</text>
-      <text x="76" y="555">expiration: 2026-08-13T04:00:00Z</text>
+      <text x="76" y="527">registration: 1990-12-31T23:59:59Z</text>
       <text x="52" y="595" font-weight="bold">Registration</text>
     </g>
 

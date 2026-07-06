@@ -16,7 +16,7 @@ enum class LookupStage { loading_bootstrap, querying_registry };
 using ProgressCallback = std::function<void(LookupStage)>;
 
 struct RdapResponse {
-  DomainName query;
+  ResourceQuery query;
   std::string request_url;
   HttpResponse http;
   nlohmann::json document;
@@ -26,16 +26,23 @@ class RdapClient {
 public:
   explicit RdapClient(HttpClient &http_client) : http_client_(http_client) {}
 
+  Result<RdapResponse> lookup(const ResourceQuery &query, const CancellationToken &cancellation,
+                              const ProgressCallback &progress = {});
   Result<RdapResponse> lookup_domain(const DomainName &domain,
                                      const CancellationToken &cancellation,
                                      const ProgressCallback &progress = {});
 
 private:
-  Result<BootstrapRegistry> bootstrap(const CancellationToken &cancellation);
+  Result<BootstrapRegistry> domain_bootstrap(const CancellationToken &cancellation);
+  Result<IpBootstrapRegistry> ip_bootstrap(IpFamily family, const CancellationToken &cancellation);
+  Result<AsnBootstrapRegistry> asn_bootstrap(const CancellationToken &cancellation);
 
   HttpClient &http_client_;
   std::mutex bootstrap_mutex_;
-  std::optional<BootstrapRegistry> bootstrap_;
+  std::optional<BootstrapRegistry> domain_bootstrap_;
+  std::optional<IpBootstrapRegistry> ipv4_bootstrap_;
+  std::optional<IpBootstrapRegistry> ipv6_bootstrap_;
+  std::optional<AsnBootstrapRegistry> asn_bootstrap_;
 };
 
 } // namespace rdap

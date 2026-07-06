@@ -1,0 +1,16 @@
+{
+  "rdapConformance": ["rdap_level_0"],
+  "objectClassName": "ip network",
+  "startAddress": "198.51.100.0",
+  "endAddress": "198.51.100.255",
+  "ipVersion": "v4",
+  "entities": [
+    {"objectClassName": "entity", "roles": ["registrant"]}
+  ],
+  "remarks": [
+    {
+      "type": "object redacted due to authorization",
+      "description": ["Contact data is unavailable."]
+    }
+  ]
+}

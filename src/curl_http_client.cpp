@@ -155,7 +155,7 @@ Result<HttpResponse> CurlHttpClient::get(const HttpRequest &request,
 
   curl_easy_setopt(handle.get(), CURLOPT_URL, request.url.c_str());
   curl_easy_setopt(handle.get(), CURLOPT_HTTPHEADER, headers.get());
-  curl_easy_setopt(handle.get(), CURLOPT_USERAGENT, "rdap-tui/0.1.0");
+  curl_easy_setopt(handle.get(), CURLOPT_USERAGENT, "rdap-tui/0.2.0");
   curl_easy_setopt(handle.get(), CURLOPT_ACCEPT_ENCODING, "");
   curl_easy_setopt(handle.get(), CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(handle.get(), CURLOPT_MAXREDIRS, request.maximum_redirects);

@@ -42,6 +42,12 @@ DomainName example_domain() {
   return std::get<DomainName>(std::move(parsed));
 }
 
+ResourceQuery query(std::string_view value) {
+  auto parsed = ResourceQueryParser::parse(value);
+  REQUIRE(std::holds_alternative<ResourceQuery>(parsed));
+  return std::get<ResourceQuery>(std::move(parsed));
+}
+
 } // namespace
 
 TEST_CASE("client performs bootstrap and domain lookup") {
@@ -147,4 +153,70 @@ TEST_CASE("transport safety errors are propagated") {
     REQUIRE(std::holds_alternative<Error>(result));
     CHECK(std::get<Error>(result).code == code);
   }
+}
+
+TEST_CASE("client performs IPv4 lookup through the address bootstrap") {
+  FakeHttpClient http;
+  http.responses.emplace_back(
+      response(200L, R"({"version":"1.0","services":[[["0.0.0.0/0"],["https://rir.example/"]]]})",
+               "https://data.iana.org/rdap/ipv4.json"));
+  http.responses.emplace_back(response(
+      200L,
+      R"({"objectClassName":"ip network","startAddress":"192.0.2.0","endAddress":"192.0.2.255"})",
+      "https://rir.example/ip/192.0.2.1"));
+  RdapClient client(http);
+
+  auto result = client.lookup(query("192.0.2.1"), {});
+
+  REQUIRE(std::holds_alternative<RdapResponse>(result));
+  CHECK(std::get<RdapResponse>(result).request_url == "https://rir.example/ip/192.0.2.1");
+  REQUIRE(http.requests.size() == 2U);
+  CHECK(http.requests.front().url == "https://data.iana.org/rdap/ipv4.json");
+}
+
+TEST_CASE("client preserves normalized CIDR path segments") {
+  FakeHttpClient http;
+  http.responses.emplace_back(
+      response(200L, R"({"version":"1.0","services":[[["0.0.0.0/0"],["https://rir.example/"]]]})"));
+  http.responses.emplace_back(
+      response(200L, R"({"objectClassName":"ip network"})", "https://rir.example/ip/192.0.2.0/24"));
+  RdapClient client(http);
+
+  auto result = client.lookup(query("192.0.2.42/24"), {});
+
+  REQUIRE(std::holds_alternative<RdapResponse>(result));
+  CHECK(std::get<RdapResponse>(result).request_url == "https://rir.example/ip/192.0.2.0/24");
+}
+
+TEST_CASE("client performs ASN lookup through the ASN bootstrap") {
+  FakeHttpClient http;
+  http.responses.emplace_back(response(
+      200L, R"({"version":"1.0","services":[[["1-4294967295"],["https://rir.example/"]]]})",
+      "https://data.iana.org/rdap/asn.json"));
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"autnum","startAutnum":13335})",
+                                       "https://rir.example/autnum/13335"));
+  RdapClient client(http);
+
+  auto result = client.lookup(query("AS13335"), {});
+
+  REQUIRE(std::holds_alternative<RdapResponse>(result));
+  CHECK(std::get<RdapResponse>(result).request_url == "https://rir.example/autnum/13335");
+  CHECK(http.requests.front().url == "https://data.iana.org/rdap/asn.json");
+}
+
+TEST_CASE("number resource bootstraps are cached independently") {
+  FakeHttpClient http;
+  http.responses.emplace_back(
+      response(200L, R"({"version":"1.0","services":[[["0.0.0.0/0"],["https://v4.example/"]]]})"));
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"ip network"})"));
+  http.responses.emplace_back(
+      response(200L, R"({"version":"1.0","services":[[["1-100"],["https://asn.example/"]]]})"));
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"autnum"})"));
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"ip network"})"));
+  RdapClient client(http);
+
+  REQUIRE(std::holds_alternative<RdapResponse>(client.lookup(query("192.0.2.1"), {})));
+  REQUIRE(std::holds_alternative<RdapResponse>(client.lookup(query("AS42"), {})));
+  REQUIRE(std::holds_alternative<RdapResponse>(client.lookup(query("198.51.100.1"), {})));
+  CHECK(http.requests.size() == 5U);
 }

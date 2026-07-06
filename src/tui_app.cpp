@@ -5,7 +5,10 @@
 #include "rdap/domain_record_parser.hpp"
 #include "rdap/domain_view_formatter.hpp"
 #include "rdap/http.hpp"
+#include "rdap/network_record_parser.hpp"
+#include "rdap/network_view_formatter.hpp"
 #include "rdap/rdap_client.hpp"
+#include "rdap/resource_query.hpp"
 
 #include <algorithm>
 #include <ftxui/component/component.hpp>
@@ -30,7 +33,7 @@ enum class ViewState { idle, loading_bootstrap, querying, success, error };
 
 struct CompletedLookup {
   RdapResponse response;
-  Result<DomainParseResult> projection;
+  std::variant<DomainParseResult, NetworkParseResult, AutnumParseResult, Error> projection;
 };
 
 using ViewLookupResult = Result<CompletedLookup>;
@@ -82,7 +85,7 @@ class TuiApplication {
 public:
   TuiApplication()
       : screen_(ScreenInteractive::Fullscreen()), client_(http_client_),
-        input_(Input(&domain_input_, "example.com")),
+        input_(Input(&query_input_, "example.com, 1.1.1.1, or AS13335")),
         search_(Button("Search", [this] { start_lookup(); })),
         section_toggle_(Toggle(&section_names_, &section_index_)),
         overview_menu_(Menu(&overview_lines_, &overview_index_)),
@@ -119,7 +122,7 @@ public:
       return vbox({
                  text("rdap-tui") | bold | center,
                  separator(),
-                 hbox({text(" Domain  "), input_->Render() | flex, text(" "), search_->Render()}),
+                 hbox({text(" Query  "), input_->Render() | flex, text(" "), search_->Render()}),
                  hbox({text(" Status  "), status}),
                  vbox(std::move(metadata)),
                  separator(),
@@ -175,18 +178,19 @@ private:
       return;
     }
 
-    auto domain_result = DomainName::parse(domain_input_);
-    if (const auto *error = std::get_if<Error>(&domain_result)) {
+    auto query_result = ResourceQueryParser::parse(query_input_);
+    if (const auto *error = std::get_if<Error>(&query_result)) {
       show_error(*error);
       return;
     }
-    auto domain = std::get<DomainName>(std::move(domain_result));
+    auto query = std::get<ResourceQuery>(std::move(query_result));
 
     if (worker_.joinable()) {
       worker_.join();
     }
     state_ = ViewState::loading_bootstrap;
     metadata_.clear();
+    section_names_[2] = detail_view_name(query);
     section_index_ = 0;
     json_view_index_ = 0;
     overview_lines_ = {"Waiting for the RDAP response..."};
@@ -199,7 +203,7 @@ private:
 
     cancellation_ = CancellationSource();
     const auto cancellation = cancellation_.token();
-    worker_ = std::thread([this, domain = std::move(domain), cancellation] {
+    worker_ = std::thread([this, query = std::move(query), cancellation] {
       auto progress = [this](LookupStage stage) {
         {
           std::scoped_lock lock(pending_mutex_);
@@ -207,10 +211,34 @@ private:
         }
         screen_.PostEvent(Event::Custom);
       };
-      auto result = client_.lookup_domain(domain, cancellation, progress);
+      auto result = client_.lookup(query, cancellation, progress);
       auto view_result = [&result]() -> ViewLookupResult {
         if (auto *response = std::get_if<RdapResponse>(&result)) {
-          auto projection = DomainRecordParser::parse(response->document);
+          auto projection = std::visit(
+              [&](const auto &value)
+                  -> std::variant<DomainParseResult, NetworkParseResult, AutnumParseResult, Error> {
+                using Value = std::decay_t<decltype(value)>;
+                if constexpr (std::is_same_v<Value, DomainName>) {
+                  auto parsed = DomainRecordParser::parse(response->document);
+                  if (const auto *error = std::get_if<Error>(&parsed)) {
+                    return *error;
+                  }
+                  return std::get<DomainParseResult>(std::move(parsed));
+                } else if constexpr (std::is_same_v<Value, IpNetworkQuery>) {
+                  auto parsed = NetworkRecordParser::parse(response->document);
+                  if (const auto *error = std::get_if<Error>(&parsed)) {
+                    return *error;
+                  }
+                  return std::get<NetworkParseResult>(std::move(parsed));
+                } else {
+                  auto parsed = AutnumRecordParser::parse(response->document);
+                  if (const auto *error = std::get_if<Error>(&parsed)) {
+                    return *error;
+                  }
+                  return std::get<AutnumParseResult>(std::move(parsed));
+                }
+              },
+              response->query);
           return CompletedLookup{std::move(*response), std::move(projection)};
         }
         return std::get<Error>(std::move(result));
@@ -248,8 +276,8 @@ private:
     auto completed = std::get<CompletedLookup>(std::move(*result));
     auto &response = completed.response;
     state_ = ViewState::success;
-    metadata_ = std::string(response.query.ascii()) + "  HTTP " +
-                std::to_string(response.http.status) + "  " + response.http.effective_url;
+    metadata_ = query_text(response.query) + "  HTTP " + std::to_string(response.http.status) +
+                "  " + response.http.effective_url;
     pretty_lines_ = lines(response.document.dump(2));
     raw_lines_ = lines(response.http.body);
     if (const auto *projection_error = std::get_if<Error>(&completed.projection)) {
@@ -262,8 +290,20 @@ private:
       section_index_ = 4;
       metadata_ += "  Structured view unavailable";
     } else {
-      auto formatted =
-          DomainViewFormatter::format(std::get<DomainParseResult>(completed.projection));
+      auto formatted = std::visit(
+          [](const auto &projection) -> DomainViewLines {
+            using Projection = std::decay_t<decltype(projection)>;
+            if constexpr (std::is_same_v<Projection, DomainParseResult>) {
+              return DomainViewFormatter::format(projection);
+            } else if constexpr (std::is_same_v<Projection, NetworkParseResult>) {
+              return NetworkViewFormatter::format(projection);
+            } else if constexpr (std::is_same_v<Projection, AutnumParseResult>) {
+              return AutnumViewFormatter::format(projection);
+            } else {
+              return {};
+            }
+          },
+          completed.projection);
       overview_lines_ = std::move(formatted.overview);
       contacts_lines_ = std::move(formatted.contacts);
       dns_lines_ = std::move(formatted.dns);
@@ -307,6 +347,21 @@ private:
     raw_index_ = 0;
   }
 
+  static std::string detail_view_name(const ResourceQuery &query) {
+    return std::visit(
+        [](const auto &value) -> std::string {
+          using Value = std::decay_t<decltype(value)>;
+          if constexpr (std::is_same_v<Value, DomainName>) {
+            return "DNS";
+          } else if constexpr (std::is_same_v<Value, IpNetworkQuery>) {
+            return "Network";
+          } else {
+            return "Autnum";
+          }
+        },
+        query);
+  }
+
   ScreenInteractive screen_;
   CurlHttpClient http_client_;
   RdapClient client_;
@@ -318,7 +373,7 @@ private:
   std::optional<ViewLookupResult> pending_result_;
 
   ViewState state_{ViewState::idle};
-  std::string domain_input_;
+  std::string query_input_;
   std::string metadata_;
   std::vector<std::string> section_names_{"Overview", "Contacts", "DNS", "Notices", "JSON"};
   int section_index_{0};
