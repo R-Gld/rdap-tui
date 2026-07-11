@@ -65,9 +65,7 @@ public:
   EnvironmentVariableGuard(const EnvironmentVariableGuard &) = delete;
   EnvironmentVariableGuard &operator=(const EnvironmentVariableGuard &) = delete;
 
-  void set(std::string_view value) const {
-    setenv(name_.c_str(), std::string(value).c_str(), 1);
-  }
+  void set(std::string_view value) const { setenv(name_.c_str(), std::string(value).c_str(), 1); }
 
   void unset() const { unsetenv(name_.c_str()); }
 

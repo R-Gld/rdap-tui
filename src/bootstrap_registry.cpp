@@ -273,9 +273,9 @@ Result<AsnBootstrapRegistry> AsnBootstrapRegistry::parse(std::string_view docume
       if (entry.find('-', dash == std::string::npos ? 0U : dash + 1U) != std::string::npos) {
         return bootstrap_error("The IANA bootstrap document contains an invalid ASN range.", entry);
       }
-      const auto start = parse_number(dash == std::string::npos
-                                          ? std::string_view(entry)
-                                          : std::string_view(entry).substr(0U, dash));
+      const auto start =
+          parse_number(dash == std::string::npos ? std::string_view(entry)
+                                                 : std::string_view(entry).substr(0U, dash));
       const auto end = dash == std::string::npos
                            ? start
                            : parse_number(std::string_view(entry).substr(dash + 1U));
