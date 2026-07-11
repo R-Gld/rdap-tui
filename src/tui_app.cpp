@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "rdap/tui_app.hpp"
 
+#include "rdap/app_state.hpp"
 #include "rdap/bootstrap_cache.hpp"
 #include "rdap/domain_name.hpp"
 #include "rdap/domain_record_parser.hpp"
@@ -84,8 +85,10 @@ Color state_color(ViewState state) {
 
 class TuiApplication {
 public:
-  explicit TuiApplication(BootstrapCache *disk_cache)
+  TuiApplication(BootstrapCache *disk_cache, AppConfig config, AppState state,
+                 AppStateStore *state_store)
       : screen_(ScreenInteractive::Fullscreen()), client_(http_client_, disk_cache),
+        config_(config), app_state_(std::move(state)), state_store_(state_store),
         input_(Input(&query_input_, "example.com, 1.1.1.1, or AS13335")),
         search_(Button("Search", [this] { start_lookup(); })),
         section_toggle_(Toggle(&section_names_, &section_index_)),
@@ -93,6 +96,7 @@ public:
         contacts_menu_(Menu(&contacts_lines_, &contacts_index_)),
         dns_menu_(Menu(&dns_lines_, &dns_index_)),
         notices_menu_(Menu(&notices_lines_, &notices_index_)),
+        saved_menu_(Menu(&saved_lines_, &saved_index_)),
         json_toggle_(Toggle(&json_view_names_, &json_view_index_)),
         pretty_menu_(Menu(&pretty_lines_, &pretty_index_)),
         raw_menu_(Menu(&raw_lines_, &raw_index_)),
@@ -102,9 +106,11 @@ public:
                                return vbox({hbox({text(" JSON  "), json_toggle_->Render()}),
                                             json_tabs_->Render() | flex});
                              })),
-        result_tabs_(
-            Container::Tab({overview_menu_, contacts_menu_, dns_menu_, notices_menu_, json_panel_},
-                           &section_index_)) {
+        result_tabs_(Container::Tab(
+            {overview_menu_, contacts_menu_, dns_menu_, notices_menu_, saved_menu_, json_panel_},
+            &section_index_)) {
+    rebuild_saved_lines();
+
     auto controls = Container::Horizontal({input_, search_});
     auto interactive = Container::Vertical({controls, section_toggle_, result_tabs_});
 
@@ -119,6 +125,9 @@ public:
       if (!metadata_.empty()) {
         metadata.push_back(text(metadata_) | dim);
       }
+      if (!storage_message_.empty()) {
+        metadata.push_back(text(storage_message_) | dim);
+      }
 
       return vbox({
                  text("rdap-tui") | bold | center,
@@ -130,8 +139,8 @@ public:
                  hbox({text(" View  "), section_toggle_->Render()}),
                  result_tabs_->Render() | vscroll_indicator | frame | flex,
                  separator(),
-                 text("Enter: search  1-5: views  Tab: focus  ↑/↓/PgUp/PgDn: scroll  "
-                      "Ctrl+C/Esc: quit") |
+                 text("Enter: search/open  f: favorite  1-6: views  Tab: focus  "
+                      "↑/↓: history/scroll  Ctrl+C/Esc: quit") |
                      dim,
              }) |
              border;
@@ -150,9 +159,29 @@ public:
         start_lookup();
         return true;
       }
+      if (input_->Focused() && event == Event::ArrowUp) {
+        browse_history(-1);
+        return true;
+      }
+      if (input_->Focused() && event == Event::ArrowDown) {
+        browse_history(1);
+        return true;
+      }
+      if (!input_->Focused() && section_index_ == 4 && event == Event::Return) {
+        const auto query = saved_query_at(saved_index_);
+        if (query.has_value()) {
+          query_input_ = *query;
+          start_lookup();
+          return true;
+        }
+      }
       if (!input_->Focused() && event.is_character()) {
         const auto character = event.character();
-        if (character.size() == 1U && character[0] >= '1' && character[0] <= '5') {
+        if (character == "f") {
+          toggle_current_favorite();
+          return true;
+        }
+        if (character.size() == 1U && character[0] >= '1' && character[0] <= '6') {
           section_index_ = static_cast<int>(character[0] - '1');
           return true;
         }
@@ -179,6 +208,7 @@ private:
       return;
     }
 
+    history_browse_index_.reset();
     auto query_result = ResourceQueryParser::parse(query_input_);
     if (const auto *error = std::get_if<Error>(&query_result)) {
       show_error(*error);
@@ -276,9 +306,14 @@ private:
 
     auto completed = std::get<CompletedLookup>(std::move(*result));
     auto &response = completed.response;
+    const auto completed_query = query_text(response.query);
     state_ = ViewState::success;
-    metadata_ = query_text(response.query) + "  HTTP " + std::to_string(response.http.status) +
-                "  " + response.http.effective_url;
+    metadata_ = completed_query + "  HTTP " + std::to_string(response.http.status) + "  " +
+                response.http.effective_url;
+    last_success_query_ = completed_query;
+    add_history(app_state_, completed_query, config_.history_limit);
+    persist_state();
+    rebuild_saved_lines();
     pretty_lines_ = lines(response.document.dump(2));
     raw_lines_ = lines(response.http.body);
     if (const auto *projection_error = std::get_if<Error>(&completed.projection)) {
@@ -288,7 +323,7 @@ private:
       contacts_lines_ = overview_lines_;
       dns_lines_ = overview_lines_;
       notices_lines_ = overview_lines_;
-      section_index_ = 4;
+      section_index_ = 5;
       metadata_ += "  Structured view unavailable";
     } else {
       auto formatted = std::visit(
@@ -348,6 +383,93 @@ private:
     raw_index_ = 0;
   }
 
+  void browse_history(int direction) {
+    if (app_state_.history.empty()) {
+      return;
+    }
+    if (!history_browse_index_.has_value()) {
+      history_draft_ = query_input_;
+      history_browse_index_ = 0;
+    } else if (direction < 0 && *history_browse_index_ + 1U < app_state_.history.size()) {
+      ++*history_browse_index_;
+    } else if (direction > 0) {
+      if (*history_browse_index_ == 0U) {
+        history_browse_index_.reset();
+        query_input_ = history_draft_;
+        return;
+      }
+      --*history_browse_index_;
+    }
+    query_input_ = app_state_.history[*history_browse_index_];
+  }
+
+  void rebuild_saved_lines() {
+    saved_lines_.clear();
+    saved_queries_.clear();
+    saved_lines_.push_back("Favorites");
+    saved_queries_.push_back(std::nullopt);
+    if (app_state_.favorites.empty()) {
+      saved_lines_.push_back("  No favorites yet. Press f after a successful lookup.");
+      saved_queries_.push_back(std::nullopt);
+    } else {
+      for (const auto &favorite : app_state_.favorites) {
+        saved_lines_.push_back("★ " + favorite);
+        saved_queries_.push_back(favorite);
+      }
+    }
+    saved_lines_.push_back("");
+    saved_queries_.push_back(std::nullopt);
+    saved_lines_.push_back("History");
+    saved_queries_.push_back(std::nullopt);
+    if (app_state_.history.empty()) {
+      saved_lines_.push_back("  No history yet. Run a successful lookup.");
+      saved_queries_.push_back(std::nullopt);
+    } else {
+      for (const auto &history : app_state_.history) {
+        const std::string marker = is_favorite(app_state_, history) ? "★ " : "  ";
+        saved_lines_.push_back(marker + history);
+        saved_queries_.push_back(history);
+      }
+    }
+    if (saved_index_ >= static_cast<int>(saved_lines_.size())) {
+      saved_index_ = 0;
+    }
+  }
+
+  [[nodiscard]] std::optional<std::string> saved_query_at(int index) const {
+    if (index < 0 || static_cast<std::size_t>(index) >= saved_queries_.size()) {
+      return std::nullopt;
+    }
+    return saved_queries_[static_cast<std::size_t>(index)];
+  }
+
+  void toggle_current_favorite() {
+    auto target = normalize_stored_query(query_input_);
+    if (!target.has_value() && !last_success_query_.empty()) {
+      target = last_success_query_;
+    }
+    if (!target.has_value()) {
+      storage_message_ = "Favorite unchanged: enter a valid query first.";
+      return;
+    }
+    const auto added = toggle_favorite(app_state_, *target);
+    persist_state();
+    rebuild_saved_lines();
+    storage_message_ = std::string(added ? "Added favorite: " : "Removed favorite: ") + *target;
+  }
+
+  void persist_state() {
+    if (state_store_ == nullptr) {
+      storage_message_ = "Local state is disabled: no valid state directory.";
+      return;
+    }
+    if (!state_store_->write(app_state_)) {
+      storage_message_ = "Local state could not be written.";
+      return;
+    }
+    storage_message_.clear();
+  }
+
   static std::string detail_view_name(const ResourceQuery &query) {
     return std::visit(
         [](const auto &value) -> std::string {
@@ -366,6 +488,9 @@ private:
   ScreenInteractive screen_;
   CurlHttpClient http_client_;
   RdapClient client_;
+  AppConfig config_;
+  AppState app_state_;
+  AppStateStore *state_store_{nullptr};
   std::thread worker_;
   CancellationSource cancellation_;
 
@@ -376,16 +501,24 @@ private:
   ViewState state_{ViewState::idle};
   std::string query_input_;
   std::string metadata_;
-  std::vector<std::string> section_names_{"Overview", "Contacts", "DNS", "Notices", "JSON"};
+  std::string storage_message_;
+  std::string last_success_query_;
+  std::string history_draft_;
+  std::optional<std::size_t> history_browse_index_;
+  std::vector<std::string> section_names_{"Overview", "Contacts", "DNS",
+                                          "Notices",  "Saved",    "JSON"};
   int section_index_{0};
   std::vector<std::string> overview_lines_{"Enter a domain name to start."};
   std::vector<std::string> contacts_lines_{"Enter a domain name to start."};
   std::vector<std::string> dns_lines_{"Enter a domain name to start."};
   std::vector<std::string> notices_lines_{"Enter a domain name to start."};
+  std::vector<std::string> saved_lines_;
+  std::vector<std::optional<std::string>> saved_queries_;
   int overview_index_{0};
   int contacts_index_{0};
   int dns_index_{0};
   int notices_index_{0};
+  int saved_index_{0};
   std::vector<std::string> json_view_names_{"Pretty", "Raw"};
   int json_view_index_{0};
   std::vector<std::string> pretty_lines_{"Enter a domain name to start."};
@@ -400,6 +533,7 @@ private:
   Component contacts_menu_;
   Component dns_menu_;
   Component notices_menu_;
+  Component saved_menu_;
   Component json_toggle_;
   Component pretty_menu_;
   Component raw_menu_;
@@ -411,8 +545,9 @@ private:
 
 } // namespace
 
-int run_tui(BootstrapCache *disk_cache) {
-  TuiApplication application(disk_cache);
+int run_tui(BootstrapCache *disk_cache, AppConfig config, AppState state,
+            AppStateStore *state_store) {
+  TuiApplication application(disk_cache, config, std::move(state), state_store);
   return application.run();
 }
 

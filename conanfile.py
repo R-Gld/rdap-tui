@@ -5,7 +5,7 @@ from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
 
 class RdapTuiRecipe(ConanFile):
     name = "rdap-tui"
-    version = "0.3.0"
+    version = "0.4.0"
     package_type = "application"
     settings = "os", "compiler", "build_type", "arch"
     options = {

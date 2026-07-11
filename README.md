@@ -49,12 +49,14 @@ Enter an ASCII domain, Punycode A-label, IPv4 or IPv6 address, CIDR prefix, or A
 ASN input accepts both `AS13335` and `13335`; numeric-only input is therefore treated as an ASN.
 CIDR input is normalized to its network prefix before lookup.
 
-The result is split into five views: Overview, Contacts, a resource-specific DNS/Network/Autnum
-view, Notices, and JSON. Press 1–5 to switch views while the query field is not focused. The JSON
-view retains both a pretty-printed document and the byte-preserving response.
+The result is split into six views: Overview, Contacts, a resource-specific DNS/Network/Autnum
+view, Notices, Saved, and JSON. Press 1–6 to switch views while the query field is not focused.
+The JSON view retains both a pretty-printed document and the byte-preserving response.
 
 Use Tab to move between controls, arrow keys or Page Up/Page Down to scroll, and Ctrl+C or Escape
-to quit.
+to quit. When the query field is focused, Up/Down navigates the query history. Press `f` outside
+the query field to toggle a favorite for the latest successful lookup or the current valid input.
+The Saved view lists favorites and recent history; pressing Enter on an entry re-runs it.
 
 ```text
 rdap-tui [--help] [--version]
@@ -80,6 +82,27 @@ re-fetching them. The cache lives at:
 - macOS: `~/Library/Caches/rdap-tui/bootstrap`
 
 Deleting this directory clears the cache; a fresh copy is fetched on the next lookup.
+
+## Local state and config
+
+Successful queries are saved locally as history, and favorites are stored in the same state file.
+Linux follows the XDG base directory specification and ignores relative XDG paths:
+
+- Config: `$XDG_CONFIG_HOME/rdap-tui/config.json` (or `~/.config/rdap-tui/config.json`)
+- State: `$XDG_STATE_HOME/rdap-tui/state.json` (or `~/.local/state/rdap-tui/state.json`)
+
+macOS stores both files in `~/Library/Application Support/rdap-tui/`.
+
+The optional config file currently supports:
+
+```json
+{
+  "schema_version": 1,
+  "history_limit": 200
+}
+```
+
+Invalid or missing config/state files fall back to defaults and never prevent lookups.
 
 ## Optional network smoke test
 

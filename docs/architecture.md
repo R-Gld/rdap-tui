@@ -23,6 +23,12 @@ Presentation formatting is independent from FTXUI. It produces line collections 
 Contacts, DNS, and Notices; the TUI gives each view its own scroll position and preserves both
 pretty and original JSON representations.
 
+Local user state is kept separate from network/cache behavior. Config controls small UX limits
+such as history length, while state stores normalized query history and favorites. Linux paths
+follow XDG strictly and ignore relative environment paths; macOS uses Application Support.
+Invalid or unwritable local state is treated as a disabled persistence layer, not as a lookup
+failure.
+
 The four bootstrap registries are fetched lazily and cached independently for the process
 lifetime. Domain matching is label-aware, IP matching uses the longest binary prefix, and ASN
 matching uses inclusive ranges. Only HTTPS services are returned. A lookup tries the next
