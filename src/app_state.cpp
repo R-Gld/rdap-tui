@@ -65,8 +65,8 @@ std::vector<std::string> normalized_queries_from_json(const nlohmann::json &json
       continue;
     }
     auto normalized = normalize_stored_query(entry.get<std::string>());
-    if (!normalized.has_value() || std::find(queries.begin(), queries.end(), *normalized) !=
-                                      queries.end()) {
+    if (!normalized.has_value() ||
+        std::find(queries.begin(), queries.end(), *normalized) != queries.end()) {
       continue;
     }
     queries.push_back(std::move(*normalized));
@@ -106,7 +106,8 @@ bool write_json_atomically(const std::filesystem::path &path, const nlohmann::js
 
 } // namespace
 
-AppStateStore::AppStateStore(std::filesystem::path state_file) : state_file_(std::move(state_file)) {}
+AppStateStore::AppStateStore(std::filesystem::path state_file)
+    : state_file_(std::move(state_file)) {}
 
 AppState AppStateStore::read() const {
   try {
@@ -150,8 +151,9 @@ AppPaths default_app_paths() {
 #else
   const auto config_directory = linux_config_directory();
   const auto state_directory = linux_state_directory();
-  return AppPaths{config_directory.empty() ? std::filesystem::path{} : config_directory / "config.json",
-                  state_directory.empty() ? std::filesystem::path{} : state_directory / "state.json"};
+  return AppPaths{
+      config_directory.empty() ? std::filesystem::path{} : config_directory / "config.json",
+      state_directory.empty() ? std::filesystem::path{} : state_directory / "state.json"};
 #endif
 }
 
