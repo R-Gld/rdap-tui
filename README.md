@@ -66,8 +66,20 @@ warnings in the Notices view, while the complete response remains available unde
 The country shown for IP and ASN results is the registration country reported by the registry; it
 is not IP geolocation.
 
-Unicode-to-IDNA conversion, BGP/RPKI data, geolocation, persistent disk caching, and binary
-packages remain outside this milestone.
+Unicode-to-IDNA conversion, BGP/RPKI data, geolocation, and binary packages remain outside this
+milestone.
+
+## Bootstrap cache
+
+The IANA bootstrap registries (used to find the authoritative RDAP service for a query) are
+cached to disk, honoring the `Cache-Control`/`ETag` headers IANA returns, so repeated runs avoid
+re-fetching them. The cache lives at:
+
+- Linux: `$XDG_CACHE_HOME/rdap-tui/bootstrap` (or `~/.cache/rdap-tui/bootstrap`)
+- macOS: `~/Library/Caches/rdap-tui/bootstrap`
+- Windows: `%LOCALAPPDATA%\rdap-tui\bootstrap`
+
+Deleting this directory clears the cache; a fresh copy is fetched on the next lookup.
 
 ## Optional network smoke test
 

@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "rdap/rdap_client.hpp"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
+#include <cstdint>
 #include <deque>
+#include <filesystem>
+#include <fstream>
+#include <random>
 #include <string>
 #include <utility>
 #include <variant>
@@ -11,6 +17,33 @@
 using namespace rdap;
 
 namespace {
+
+class TempDirectory {
+public:
+  TempDirectory() {
+    // Each Catch2 TEST_CASE runs as its own process under ctest (which runs
+    // several in parallel), so uniqueness must hold across processes, not
+    // just within one -- a per-process counter alone is not enough.
+    std::random_device random_device;
+    const auto unique = (static_cast<std::uint64_t>(random_device()) << 32U) |
+                        static_cast<std::uint64_t>(random_device());
+    path_ = std::filesystem::temp_directory_path() / ("rdap-tui-test-" + std::to_string(unique));
+    std::filesystem::create_directories(path_);
+  }
+
+  ~TempDirectory() {
+    std::error_code ignored;
+    std::filesystem::remove_all(path_, ignored);
+  }
+
+  TempDirectory(const TempDirectory &) = delete;
+  TempDirectory &operator=(const TempDirectory &) = delete;
+
+  [[nodiscard]] const std::filesystem::path &path() const { return path_; }
+
+private:
+  std::filesystem::path path_;
+};
 
 class FakeHttpClient final : public HttpClient {
 public:
@@ -219,4 +252,165 @@ TEST_CASE("number resource bootstraps are cached independently") {
   REQUIRE(std::holds_alternative<RdapResponse>(client.lookup(query("AS42"), {})));
   REQUIRE(std::holds_alternative<RdapResponse>(client.lookup(query("198.51.100.1"), {})));
   CHECK(http.requests.size() == 5U);
+}
+
+TEST_CASE("cold disk cache performs one fetch and writes the cache") {
+  TempDirectory directory;
+  BootstrapCache cache(directory.path());
+  FakeHttpClient http;
+  http.responses.emplace_back(response(200L, bootstrap()));
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"domain"})"));
+  RdapClient client(http, &cache);
+
+  REQUIRE(std::holds_alternative<RdapResponse>(client.lookup_domain(example_domain(), {})));
+  CHECK(http.requests.size() == 2U);
+
+  const auto cached = cache.read(BootstrapKind::domain);
+  REQUIRE(cached.has_value());
+  CHECK(cached->body == bootstrap());
+}
+
+TEST_CASE("a fresh disk cache is served without any bootstrap HTTP request") {
+  TempDirectory directory;
+  BootstrapCache cache(directory.path());
+  CachedBootstrap entry;
+  entry.body = bootstrap();
+  entry.cached_at = std::chrono::system_clock::now();
+  entry.max_age = std::chrono::hours(1);
+  REQUIRE(cache.write(BootstrapKind::domain, entry));
+
+  FakeHttpClient http;
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"domain"})"));
+  RdapClient client(http, &cache);
+
+  auto result = client.lookup_domain(example_domain(), {});
+  REQUIRE(std::holds_alternative<RdapResponse>(result));
+  CHECK(http.requests.size() == 1U);
+}
+
+TEST_CASE("a stale disk cache issues a conditional request and honors 304") {
+  TempDirectory directory;
+  BootstrapCache cache(directory.path());
+  CachedBootstrap entry;
+  entry.body = bootstrap();
+  entry.etag = "\"old-etag\"";
+  entry.cached_at = std::chrono::system_clock::now() - std::chrono::hours(2);
+  entry.max_age = std::chrono::hours(1);
+  REQUIRE(cache.write(BootstrapKind::domain, entry));
+
+  FakeHttpClient http;
+  http.responses.emplace_back(response(304L, ""));
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"domain"})"));
+  RdapClient client(http, &cache);
+
+  auto result = client.lookup_domain(example_domain(), {});
+  REQUIRE(std::holds_alternative<RdapResponse>(result));
+  REQUIRE(http.requests.size() == 2U);
+  const auto &conditional_headers = http.requests.front().headers;
+  CHECK(std::find(conditional_headers.begin(), conditional_headers.end(),
+                  "If-None-Match: \"old-etag\"") != conditional_headers.end());
+
+  const auto refreshed = cache.read(BootstrapKind::domain);
+  REQUIRE(refreshed.has_value());
+  CHECK(refreshed->cached_at > entry.cached_at);
+  CHECK(refreshed->etag == entry.etag);
+}
+
+TEST_CASE("a stale disk cache is overwritten on 200") {
+  TempDirectory directory;
+  BootstrapCache cache(directory.path());
+  CachedBootstrap entry;
+  entry.body = bootstrap(R"("https://old.example/")");
+  entry.etag = "\"old-etag\"";
+  entry.cached_at = std::chrono::system_clock::now() - std::chrono::hours(2);
+  entry.max_age = std::chrono::hours(1);
+  REQUIRE(cache.write(BootstrapKind::domain, entry));
+
+  FakeHttpClient http;
+  auto fresh_bootstrap = response(200L, bootstrap(R"("https://new.example/")"));
+  fresh_bootstrap.headers["etag"] = "\"new-etag\"";
+  http.responses.emplace_back(std::move(fresh_bootstrap));
+  http.responses.emplace_back(
+      response(200L, R"({"objectClassName":"domain"})", "https://new.example/domain/example.com"));
+  RdapClient client(http, &cache);
+
+  auto result = client.lookup_domain(example_domain(), {});
+  REQUIRE(std::holds_alternative<RdapResponse>(result));
+  CHECK(std::get<RdapResponse>(result).request_url == "https://new.example/domain/example.com");
+
+  const auto updated = cache.read(BootstrapKind::domain);
+  REQUIRE(updated.has_value());
+  CHECK(updated->etag == "\"new-etag\"");
+}
+
+TEST_CASE("a stale disk cache serves the stale body after a transport error") {
+  TempDirectory directory;
+  BootstrapCache cache(directory.path());
+  CachedBootstrap entry;
+  entry.body = bootstrap();
+  entry.cached_at = std::chrono::system_clock::now() - std::chrono::hours(2);
+  entry.max_age = std::chrono::hours(1);
+  REQUIRE(cache.write(BootstrapKind::domain, entry));
+
+  FakeHttpClient http;
+  http.responses.emplace_back(
+      Error{ErrorCode::transport, "network unreachable", {}, std::nullopt, std::nullopt});
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"domain"})"));
+  RdapClient client(http, &cache);
+
+  auto result = client.lookup_domain(example_domain(), {});
+  REQUIRE(std::holds_alternative<RdapResponse>(result));
+  CHECK(http.requests.size() == 2U);
+}
+
+TEST_CASE("a stale disk cache serves the stale body after a server error") {
+  TempDirectory directory;
+  BootstrapCache cache(directory.path());
+  CachedBootstrap entry;
+  entry.body = bootstrap();
+  entry.cached_at = std::chrono::system_clock::now() - std::chrono::hours(2);
+  entry.max_age = std::chrono::hours(1);
+  REQUIRE(cache.write(BootstrapKind::domain, entry));
+
+  FakeHttpClient http;
+  http.responses.emplace_back(response(503L, R"({"errorCode":503})"));
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"domain"})"));
+  RdapClient client(http, &cache);
+
+  auto result = client.lookup_domain(example_domain(), {});
+  REQUIRE(std::holds_alternative<RdapResponse>(result));
+  CHECK(http.requests.size() == 2U);
+}
+
+TEST_CASE("a stale disk cache still fails on a 4xx bootstrap response") {
+  TempDirectory directory;
+  BootstrapCache cache(directory.path());
+  CachedBootstrap entry;
+  entry.body = bootstrap();
+  entry.cached_at = std::chrono::system_clock::now() - std::chrono::hours(2);
+  entry.max_age = std::chrono::hours(1);
+  REQUIRE(cache.write(BootstrapKind::domain, entry));
+
+  FakeHttpClient http;
+  http.responses.emplace_back(response(404L, R"({"errorCode":404})"));
+  RdapClient client(http, &cache);
+
+  auto result = client.lookup_domain(example_domain(), {});
+  REQUIRE(std::holds_alternative<Error>(result));
+  CHECK(std::get<Error>(result).http_status == 404L);
+}
+
+TEST_CASE("disk cache errors do not fail a lookup") {
+  TempDirectory directory;
+  const auto blocked_file = directory.path() / "blocked";
+  std::ofstream(blocked_file) << "not a directory";
+  BootstrapCache cache(blocked_file / "bootstrap");
+
+  FakeHttpClient http;
+  http.responses.emplace_back(response(200L, bootstrap()));
+  http.responses.emplace_back(response(200L, R"({"objectClassName":"domain"})"));
+  RdapClient client(http, &cache);
+
+  auto result = client.lookup_domain(example_domain(), {});
+  REQUIRE(std::holds_alternative<RdapResponse>(result));
 }

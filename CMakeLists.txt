@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
   rdap-tui
-  VERSION 0.2.1
+  VERSION 0.3.0
   DESCRIPTION "A terminal client for the Registration Data Access Protocol"
   LANGUAGES CXX
 )
@@ -46,6 +46,7 @@ endfunction()
 
 add_library(
   rdap_core
+  src/bootstrap_cache.cpp
   src/bootstrap_registry.cpp
   src/curl_http_client.cpp
   src/domain_name.cpp
@@ -85,6 +86,7 @@ if(BUILD_TESTING AND RDAP_BUILD_TESTS)
 
   add_executable(
     rdap_tests
+    tests/bootstrap_cache_test.cpp
     tests/bootstrap_registry_test.cpp
     tests/domain_name_test.cpp
     tests/domain_record_parser_test.cpp

@@ -39,24 +39,87 @@ std::string encode_path_segment(std::string_view value) {
   return output.str();
 }
 
+std::optional<CachedBootstrap> updated_cache_entry(const HttpResponse &response,
+                                                   std::chrono::system_clock::time_point now,
+                                                   std::optional<std::string> body = std::nullopt) {
+  CachedBootstrap entry;
+  entry.body = body.has_value() ? std::move(*body) : response.body;
+  entry.cached_at = now;
+  entry.max_age = parse_cache_control_max_age(response.headers);
+  if (const auto iterator = response.headers.find("etag"); iterator != response.headers.end()) {
+    entry.etag = iterator->second;
+  }
+  if (const auto iterator = response.headers.find("last-modified");
+      iterator != response.headers.end()) {
+    entry.last_modified = iterator->second;
+  }
+  return entry;
+}
+
+// Fetches an IANA bootstrap registry, consulting the disk cache (if any) first:
+// a fresh entry is served with zero network I/O, a stale entry is revalidated
+// with a conditional GET, a 304 extends the freshness window, and a transport
+// error or 5xx falls back to the stale body rather than failing the lookup. A
+// 4xx or an absent cache behaves exactly as an unconditional fetch always has.
 template <typename Registry>
-Result<Registry> load_bootstrap(HttpClient &http_client, std::string_view url,
+Result<Registry> load_bootstrap(HttpClient &http_client, BootstrapCache *disk_cache,
+                                BootstrapKind kind, std::string_view url,
                                 const CancellationToken &cancellation,
                                 const std::function<Result<Registry>(std::string_view)> &parser) {
+  auto cached = disk_cache != nullptr ? disk_cache->read(kind) : std::nullopt;
+  const auto now = std::chrono::system_clock::now();
+
+  if (classify_bootstrap_freshness(cached, now) == BootstrapFreshness::fresh) {
+    auto parsed = parser(cached->body);
+    if (std::holds_alternative<Registry>(parsed)) {
+      return parsed;
+    }
+    // A schema-valid but unparsable cached body must never fail a lookup;
+    // fetch as if no cache were present instead.
+    cached.reset();
+  }
+
   HttpRequest request;
   request.url = std::string(url);
   request.headers = {"Accept: application/json"};
   request.maximum_body_size = 2U * 1024U * 1024U;
+  if (cached.has_value()) {
+    auto conditional_headers = build_conditional_headers(*cached);
+    request.headers.insert(request.headers.end(), conditional_headers.begin(),
+                           conditional_headers.end());
+  }
 
   auto response_result = http_client.get(request, cancellation);
   if (const auto *error = std::get_if<Error>(&response_result)) {
+    if (cached.has_value() && error->code != ErrorCode::cancelled) {
+      return parser(cached->body);
+    }
     return *error;
   }
   auto response = std::get<HttpResponse>(std::move(response_result));
+
+  if (response.status == 304L && cached.has_value()) {
+    auto refreshed = updated_cache_entry(response, now, cached->body);
+    refreshed->etag = refreshed->etag.has_value() ? refreshed->etag : cached->etag;
+    refreshed->last_modified =
+        refreshed->last_modified.has_value() ? refreshed->last_modified : cached->last_modified;
+    if (disk_cache != nullptr) {
+      disk_cache->write(kind, *refreshed);
+    }
+    return parser(refreshed->body);
+  }
+  if (response.status >= 500L && response.status <= 599L && cached.has_value()) {
+    return parser(cached->body);
+  }
   if (response.status != 200L) {
     return http_error(response, "IANA returned an HTTP error for the bootstrap registry.");
   }
-  return parser(response.body);
+
+  auto parsed = parser(response.body);
+  if (std::holds_alternative<Registry>(parsed) && disk_cache != nullptr) {
+    disk_cache->write(kind, *updated_cache_entry(response, now));
+  }
+  return parsed;
 }
 
 } // namespace
@@ -67,7 +130,7 @@ Result<BootstrapRegistry> RdapClient::domain_bootstrap(const CancellationToken &
     return *domain_bootstrap_;
   }
   auto result = load_bootstrap<BootstrapRegistry>(
-      http_client_, domain_bootstrap_url, cancellation,
+      http_client_, disk_cache_, BootstrapKind::domain, domain_bootstrap_url, cancellation,
       [](std::string_view body) { return BootstrapRegistry::parse(body); });
   if (const auto *error = std::get_if<Error>(&result)) {
     return *error;
@@ -84,8 +147,9 @@ Result<IpBootstrapRegistry> RdapClient::ip_bootstrap(IpFamily family,
     return *cache;
   }
   const auto url = family == IpFamily::v4 ? ipv4_bootstrap_url : ipv6_bootstrap_url;
+  const auto kind = family == IpFamily::v4 ? BootstrapKind::ipv4 : BootstrapKind::ipv6;
   auto result = load_bootstrap<IpBootstrapRegistry>(
-      http_client_, url, cancellation,
+      http_client_, disk_cache_, kind, url, cancellation,
       [family](std::string_view body) { return IpBootstrapRegistry::parse(body, family); });
   if (const auto *error = std::get_if<Error>(&result)) {
     return *error;
@@ -100,7 +164,7 @@ Result<AsnBootstrapRegistry> RdapClient::asn_bootstrap(const CancellationToken &
     return *asn_bootstrap_;
   }
   auto result = load_bootstrap<AsnBootstrapRegistry>(
-      http_client_, asn_bootstrap_url, cancellation,
+      http_client_, disk_cache_, BootstrapKind::asn, asn_bootstrap_url, cancellation,
       [](std::string_view body) { return AsnBootstrapRegistry::parse(body); });
   if (const auto *error = std::get_if<Error>(&result)) {
     return *error;

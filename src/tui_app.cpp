@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "rdap/tui_app.hpp"
 
+#include "rdap/bootstrap_cache.hpp"
 #include "rdap/domain_name.hpp"
 #include "rdap/domain_record_parser.hpp"
 #include "rdap/domain_view_formatter.hpp"
@@ -83,8 +84,8 @@ Color state_color(ViewState state) {
 
 class TuiApplication {
 public:
-  TuiApplication()
-      : screen_(ScreenInteractive::Fullscreen()), client_(http_client_),
+  explicit TuiApplication(BootstrapCache *disk_cache)
+      : screen_(ScreenInteractive::Fullscreen()), client_(http_client_, disk_cache),
         input_(Input(&query_input_, "example.com, 1.1.1.1, or AS13335")),
         search_(Button("Search", [this] { start_lookup(); })),
         section_toggle_(Toggle(&section_names_, &section_index_)),
@@ -410,8 +411,8 @@ private:
 
 } // namespace
 
-int run_tui() {
-  TuiApplication application;
+int run_tui(BootstrapCache *disk_cache) {
+  TuiApplication application(disk_cache);
   return application.run();
 }
 
