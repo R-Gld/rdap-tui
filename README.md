@@ -75,9 +75,9 @@ The IANA bootstrap registries (used to find the authoritative RDAP service for a
 cached to disk, honoring the `Cache-Control`/`ETag` headers IANA returns, so repeated runs avoid
 re-fetching them. The cache lives at:
 
-- Linux: `$XDG_CACHE_HOME/rdap-tui/bootstrap` (or `~/.cache/rdap-tui/bootstrap`)
+- Linux: `$XDG_CACHE_HOME/rdap-tui/bootstrap` when `XDG_CACHE_HOME` is an absolute path
+  (or `~/.cache/rdap-tui/bootstrap`)
 - macOS: `~/Library/Caches/rdap-tui/bootstrap`
-- Windows: `%LOCALAPPDATA%\rdap-tui\bootstrap`
 
 Deleting this directory clears the cache; a fresh copy is fetched on the next lookup.
 

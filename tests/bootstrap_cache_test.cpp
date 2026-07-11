@@ -3,11 +3,15 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <optional>
 #include <random>
 #include <string>
+#include <string_view>
+#include <utility>
 
 using namespace rdap;
 
@@ -39,6 +43,39 @@ public:
 private:
   std::filesystem::path path_;
 };
+
+#if !defined(_WIN32) && !defined(__APPLE__)
+class EnvironmentVariableGuard {
+public:
+  explicit EnvironmentVariableGuard(std::string name) : name_(std::move(name)) {
+    const auto *current = std::getenv(name_.c_str());
+    if (current != nullptr) {
+      original_ = current;
+    }
+  }
+
+  ~EnvironmentVariableGuard() {
+    if (original_.has_value()) {
+      setenv(name_.c_str(), original_->c_str(), 1);
+    } else {
+      unsetenv(name_.c_str());
+    }
+  }
+
+  EnvironmentVariableGuard(const EnvironmentVariableGuard &) = delete;
+  EnvironmentVariableGuard &operator=(const EnvironmentVariableGuard &) = delete;
+
+  void set(std::string_view value) const {
+    setenv(name_.c_str(), std::string(value).c_str(), 1);
+  }
+
+  void unset() const { unsetenv(name_.c_str()); }
+
+private:
+  std::string name_;
+  std::optional<std::string> original_;
+};
+#endif
 
 CachedBootstrap sample_entry() {
   CachedBootstrap entry;
@@ -184,3 +221,59 @@ TEST_CASE("write to an unwritable location fails without throwing") {
   CHECK_FALSE(cache.write(BootstrapKind::domain, sample_entry()));
   CHECK_FALSE(cache.read(BootstrapKind::domain).has_value());
 }
+
+#if !defined(_WIN32) && !defined(__APPLE__)
+TEST_CASE("Linux cache directory prefers an absolute XDG_CACHE_HOME") {
+  TempDirectory directory;
+  EnvironmentVariableGuard xdg("XDG_CACHE_HOME");
+  EnvironmentVariableGuard home("HOME");
+  const auto xdg_cache_home = directory.path() / "xdg-cache";
+  const auto home_directory = directory.path() / "home";
+  xdg.set(xdg_cache_home.string());
+  home.set(home_directory.string());
+
+  CHECK(default_bootstrap_cache_directory() == xdg_cache_home / "rdap-tui" / "bootstrap");
+}
+
+TEST_CASE("Linux cache directory falls back when XDG_CACHE_HOME is empty") {
+  TempDirectory directory;
+  EnvironmentVariableGuard xdg("XDG_CACHE_HOME");
+  EnvironmentVariableGuard home("HOME");
+  const auto home_directory = directory.path() / "home";
+  xdg.set("");
+  home.set(home_directory.string());
+
+  CHECK(default_bootstrap_cache_directory() ==
+        home_directory / ".cache" / "rdap-tui" / "bootstrap");
+}
+
+TEST_CASE("Linux cache directory ignores a relative XDG_CACHE_HOME") {
+  TempDirectory directory;
+  EnvironmentVariableGuard xdg("XDG_CACHE_HOME");
+  EnvironmentVariableGuard home("HOME");
+  const auto home_directory = directory.path() / "home";
+  xdg.set("relative/cache");
+  home.set(home_directory.string());
+
+  CHECK(default_bootstrap_cache_directory() ==
+        home_directory / ".cache" / "rdap-tui" / "bootstrap");
+}
+
+TEST_CASE("Linux cache directory is unavailable when HOME is not absolute") {
+  EnvironmentVariableGuard xdg("XDG_CACHE_HOME");
+  EnvironmentVariableGuard home("HOME");
+  xdg.unset();
+  home.set("relative/home");
+
+  CHECK(default_bootstrap_cache_directory().empty());
+}
+
+TEST_CASE("Linux cache directory is unavailable when HOME is empty") {
+  EnvironmentVariableGuard xdg("XDG_CACHE_HOME");
+  EnvironmentVariableGuard home("HOME");
+  xdg.unset();
+  home.set("");
+
+  CHECK(default_bootstrap_cache_directory().empty());
+}
+#endif

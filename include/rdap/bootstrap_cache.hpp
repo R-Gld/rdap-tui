@@ -54,8 +54,8 @@ private:
 };
 
 // Resolves the OS-appropriate default cache directory. Returns an empty path
-// if it cannot be determined (e.g. HOME/LOCALAPPDATA unset); callers must
-// treat that as "disk cache unavailable" rather than an error.
+// if it cannot be determined; callers must treat that as "disk cache
+// unavailable" rather than an error.
 [[nodiscard]] std::filesystem::path default_bootstrap_cache_directory();
 
 } // namespace rdap

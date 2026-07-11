@@ -49,6 +49,18 @@ std::string source_url_for(BootstrapKind kind) {
   return "https://data.iana.org/rdap/" + std::string(filename_for(kind));
 }
 
+std::optional<std::filesystem::path> absolute_environment_path(const char *name) {
+  const auto *value = std::getenv(name);
+  if (value == nullptr || *value == '\0') {
+    return std::nullopt;
+  }
+  std::filesystem::path path(value);
+  if (!path.is_absolute()) {
+    return std::nullopt;
+  }
+  return path;
+}
+
 } // namespace
 
 BootstrapFreshness classify_bootstrap_freshness(const std::optional<CachedBootstrap> &cached,
@@ -182,27 +194,27 @@ bool BootstrapCache::write(BootstrapKind kind, const CachedBootstrap &entry) con
 
 std::filesystem::path default_bootstrap_cache_directory() {
 #if defined(_WIN32)
-  const auto *local_app_data = std::getenv("LOCALAPPDATA");
-  if (local_app_data == nullptr || *local_app_data == '\0') {
+  const auto local_app_data = absolute_environment_path("LOCALAPPDATA");
+  if (!local_app_data.has_value()) {
     return {};
   }
-  return std::filesystem::path(local_app_data) / "rdap-tui" / "bootstrap";
+  return *local_app_data / "rdap-tui" / "bootstrap";
 #elif defined(__APPLE__)
-  const auto *home = std::getenv("HOME");
-  if (home == nullptr || *home == '\0') {
+  const auto home = absolute_environment_path("HOME");
+  if (!home.has_value()) {
     return {};
   }
-  return std::filesystem::path(home) / "Library" / "Caches" / "rdap-tui" / "bootstrap";
+  return *home / "Library" / "Caches" / "rdap-tui" / "bootstrap";
 #else
-  const auto *xdg_cache_home = std::getenv("XDG_CACHE_HOME");
-  if (xdg_cache_home != nullptr && *xdg_cache_home != '\0') {
-    return std::filesystem::path(xdg_cache_home) / "rdap-tui" / "bootstrap";
+  const auto xdg_cache_home = absolute_environment_path("XDG_CACHE_HOME");
+  if (xdg_cache_home.has_value()) {
+    return *xdg_cache_home / "rdap-tui" / "bootstrap";
   }
-  const auto *home = std::getenv("HOME");
-  if (home == nullptr || *home == '\0') {
+  const auto home = absolute_environment_path("HOME");
+  if (!home.has_value()) {
     return {};
   }
-  return std::filesystem::path(home) / ".cache" / "rdap-tui" / "bootstrap";
+  return *home / ".cache" / "rdap-tui" / "bootstrap";
 #endif
 }
 

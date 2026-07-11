@@ -59,6 +59,7 @@ add_library(
 )
 target_include_directories(rdap_core PUBLIC include)
 target_link_libraries(rdap_core PUBLIC CURL::libcurl nlohmann_json::nlohmann_json)
+target_compile_definitions(rdap_core PRIVATE RDAP_TUI_VERSION="${PROJECT_VERSION}")
 if(WIN32)
   target_link_libraries(rdap_core PUBLIC ws2_32)
 endif()
