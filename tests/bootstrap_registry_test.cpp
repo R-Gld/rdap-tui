@@ -153,6 +153,23 @@ TEST_CASE("ASN bootstrap resolves inclusive ranges") {
         std::vector<std::string>{"https://two.example/"});
 }
 
+TEST_CASE("ASN bootstrap resolves singleton ranges") {
+  constexpr std::string_view document = R"({
+    "version":"1.0",
+    "services":[
+      [["2043"],["https://single.example/"]],
+      [["2044-2050"],["https://range.example/"]]
+    ]
+  })";
+
+  auto parsed = AsnBootstrapRegistry::parse(document);
+  REQUIRE(std::holds_alternative<AsnBootstrapRegistry>(parsed));
+  auto result = std::get<AsnBootstrapRegistry>(parsed).resolve(autnum("AS2043"));
+  REQUIRE(std::holds_alternative<std::vector<std::string>>(result));
+  CHECK(std::get<std::vector<std::string>>(result) ==
+        std::vector<std::string>{"https://single.example/"});
+}
+
 TEST_CASE("number bootstrap entries validate families ranges and overlaps") {
   CHECK(std::holds_alternative<Error>(IpBootstrapRegistry::parse(
       R"({"version":"1.0","services":[[["2001:db8::/32"],["https://example/"]]]})", IpFamily::v4)));
